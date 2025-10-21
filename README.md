@@ -8,6 +8,7 @@ ExFITS provides Elixir bindings to the CFITSIO library for working with FITS (Fl
 - Support for various data types (float, integer, short, etc.)
 - Read and write header cards
 - Helper functions for common FITS operations
+- Optional integration with Nx tensors for numerical computing
 
 ## Installation
 
@@ -17,7 +18,8 @@ by adding `exfits` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:exfits, "~> 0.2.0"}
+    {:exfits, "~> 0.2.0"},
+    {:nx, "~> 0.6.2"}  # Optional, for tensor functionality
   ]
 end
 ```
@@ -73,6 +75,21 @@ headers = [
 
 # Write the FITS file
 {:ok, filename} = Exfits.write_fits("output.fits", bin_data, headers)
+```
+
+### Working with Nx Tensors
+
+If you have the Nx package installed, you can easily work with FITS data as tensors:
+
+```elixir
+# Read a FITS file directly into an Nx tensor
+{:ok, tensor} = ExFITS.to_nx("image.fits")
+
+# Perform tensor operations
+processed_tensor = Nx.multiply(tensor, 2.0)
+
+# Write the tensor back to a FITS file
+ExFITS.write_nx(processed_tensor, "processed_image.fits")
 ```
 
 ## Documentation

@@ -1,285 +1,482 @@
-defmodule Exfits do
+defmodule ExFITS do
   @moduledoc """
-  Exfits provides Elixir bindings to the CFITSIO library for working with FITS (Flexible Image Transport System) files.
+  High-level functions for working with FITS files through the ExFITS.NIF module.
 
-  This module provides high-level functions for reading and writing FITS files, including support for:
-  - Reading and writing FITS headers and image data
-  - Support for multiple data types (float, integer, etc.)
-  - Multi-extension FITS file handling
-  - Header card manipulation
+  ## Example Usage
+
+  Reading a FITS file:
+
+  ```
+  # Read header information
+  {:ok, header} = ExFITS.FITS.read_header("example.fits")
+
+  # Read image data with dimensions
+  {:ok, {width, height, data}} = ExFITS.FITS.read_image("example.fits")
+
+  # Read both header and image data
+  {:ok, %{header: header, data: data, width: width, height: height}} = ExFITS.FITS.read("example.fits")
+  ```
+
+  Writing a FITS file:
+
+  ```
+  # Write a FITS file with just image data
+  :ok = ExFITS.FITS.write_image("new_image.fits", data, width, height)
+
+  # Write a complete FITS file with header information and image data
+  :ok = ExFITS.FITS.write_fits("new_image.fits", data, width, height, header, bitpix: 8)
+
+  # Copy a FITS file preserving all header information
+  :ok = ExFITS.FITS.copy_with_header("example.fits", "example_copy.fits")
+  ```
   """
 
   alias ExFITS.NIF
 
-  # FITS BITPIX constants
-  @bitpix_byte 8      # 8-bit unsigned integer
-  @bitpix_short 16    # 16-bit signed integer
-  @bitpix_int 32      # 32-bit signed integer
-  @bitpix_float -32   # 32-bit float
-  @bitpix_double -64  # 64-bit float
-
   @doc """
-  Opens a FITS file and returns basic information about it.
+  Open a FITS file to verify it exists and is a valid FITS file.
 
   ## Parameters
 
-  - filename: Path to the FITS file
-
-  ## Returns
-
-  - {:ok, info} where info contains metadata about the file
-  - {:error, reason} on failure
-  """
-  def open(filename) do
-    NIF.open_fits(filename)
-  end
-
-  @doc """
-  Reads image data from a FITS file.
-
-  ## Parameters
-
-  - filename: Path to the FITS file
-
-  ## Returns
-
-  - {:ok, {width, height, data}} where data is a binary of pixel values
-  - {:error, reason} on failure
-  """
-  def read_image(filename) do
-    NIF.read_image(filename)
-  end
-
-  @doc """
-  Reads header data from a FITS file.
-
-  ## Parameters
-
-  - filename: Path to the FITS file
-
-  ## Returns
-
-  - {:ok, headers} where headers is a map of header cards
-  - {:error, reason} on failure
-  """
-  def read_header(filename) do
-    NIF.read_header(filename)
-  end
-
-  @doc """
-  Writes image data to a FITS file.
-
-  ## Parameters
-
-  - filename: Path to create the new FITS file
-  - data: Binary containing pixel data
-  - width: Width of the image in pixels
-  - height: Height of the image in pixels
-  - options: Map of options for the write operation
-    - :bitpix - FITS BITPIX value (default: -32 for float)
-    - :header - Map of header cards to include
+  - path: Path to the FITS file
 
   ## Returns
 
   - :ok on success
-  - {:error, reason} on failure
+  - {:error, status} on failure
   """
-  def write_image(filename, data, width, height, options \\ %{}) do
-    bitpix = Map.get(options, :bitpix, @bitpix_float)
+  def open(path) when is_binary(path) do
+    NIF.open_fits(path)
+  end
 
-    if Map.has_key?(options, :header) do
-      NIF.write_fits_file(filename, data, width, height, bitpix, options.header)
-    else
-      NIF.write_image(filename, data, width, height, bitpix)
+  @doc """
+  Read image data from a FITS file.
+
+  ## Parameters
+
+  - path: Path to the FITS file
+
+  ## Returns
+
+  - {:ok, {width, height, data}} where data is a binary containing float32 values
+  - {:ok, data} when using older NIF version (for backward compatibility)
+  - {:error, status} on failure
+  """
+  def read_image(path) when is_binary(path) do
+    case NIF.read_image(path) do
+      {:ok, {width, height, data}} when is_integer(width) and is_integer(height) and is_binary(data) ->
+        {:ok, {width, height, data}}
+      {:ok, data} when is_binary(data) ->
+        # Handle backward compatibility
+        IO.puts("Warning: Using older NIF version without dimension information")
+        {:ok, data}
+      error -> error
     end
   end
 
   @doc """
-  Creates a FITS file with the provided image data and header cards.
+  Read header data from a FITS file.
 
   ## Parameters
 
-  - filename: Path to create the new FITS file
-  - data: Binary containing pixel data
-  - headers: List of header card strings
-  - options: Map of options for the write operation
-    - :bitpix - FITS BITPIX value (default: -32 for float)
+  - path: Path to the FITS file
 
   ## Returns
 
-  - {:ok, filename} on success
-  - {:error, reason} on failure
-  """
-  def write_fits(filename, data, headers, options \\ %{}) do
-    bitpix = Map.get(options, :bitpix, @bitpix_float)
-    NIF.write_fits_file(filename, data, headers, bitpix, options)
-  end
-
-  @doc """
-  Creates a multi-extension FITS file.
-
-  ## Parameters
-
-  - filename: Path to create the new FITS file
-  - extensions: List of maps, each containing:
-    - :data - Binary data for the extension
-    - :headers - List of header card strings for the extension
-  - options: Map of options for the write operation
-    - :bitpix - FITS BITPIX value (default: -32 for float)
-
-  ## Returns
-
-  - {:ok, filename} on success
-  - {:error, reason} on failure
-  """
-  def write_multi_extension_fits(filename, extensions, options \\ %{}) do
-    bitpix = Map.get(options, :bitpix, @bitpix_float)
-
-    # Extract data and headers lists
-    data_list = Enum.map(extensions, & &1.data)
-    headers_list = Enum.map(extensions, & &1.headers)
-
-    NIF.write_multi_extension_fits(filename, data_list, headers_list, bitpix, options)
-  end
-
-  @doc """
-  Returns a map of FITS BITPIX constants.
-
-  ## Returns
-
-  A map containing BITPIX constants for different data types:
-  - :byte - 8-bit unsigned integer (8)
-  - :short - 16-bit signed integer (16)
-  - :int - 32-bit signed integer (32)
-  - :float - 32-bit float (-32)
-  - :double - 64-bit float (-64)
-  """
-  def bitpix do
-    %{
-      byte: @bitpix_byte,
-      short: @bitpix_short,
-      int: @bitpix_int,
-      float: @bitpix_float,
-      double: @bitpix_double
-    }
-  end
-end
-
-defmodule ExFITS.NIF do
-  @on_load :load_nif
-
-  def load_nif do
-    IO.puts("Loading NIF...")
-    :erlang.load_nif(Application.app_dir(:exfits, "priv/exfits_nif"), 0)
-  end
-
-  def hello, do: :erlang.nif_error(:nif_not_loaded)
-
-  @doc "Open a FITS file (calls NIF)"
-  def open_fits(_filename), do: :erlang.nif_error(:nif_not_loaded)
-
-  @doc """
-  Read primary image data from a FITS file.
-  Returns {:ok, {width, height, binary}} or {:error, status}
-  """
-  def read_image(_filename), do: :erlang.nif_error(:nif_not_loaded)
-
-  @doc """
-  Read FITS header data as an Elixir map.
-
-  ## Parameters
-
-  - filename: Path to the FITS file
-
-  ## Returns
-
-  - {:ok, header_map} where header_map is a map of keyword-value pairs
+  - {:ok, header} where header is a map of keyword-value pairs
   - {:error, status} on failure
   """
-  def read_header(_filename), do: :erlang.nif_error(:nif_not_loaded)
+  def read_header(path) when is_binary(path) do
+    NIF.read_header(path)
+  end
 
   @doc """
-  Write image data (float32 binary) to a new FITS file with specified dimensions.
+  Read both header and image data from a FITS file.
 
   ## Parameters
 
-  - filename: Path to create the new FITS file
+  - path: Path to the FITS file
+
+  ## Returns
+
+  - {:ok, %{header: header, data: data, width: width, height: height}} on success
+  - {:ok, %{header: header, data: data}} with older NIF version
+  - {:error, status} on failure
+  """
+  def read(path) when is_binary(path) do
+    with {:ok, header} <- read_header(path),
+         read_result <- read_image(path) do
+      case read_result do
+        {:ok, {width, height, data}} ->
+          {:ok, %{header: header, data: data, width: width, height: height}}
+        {:ok, data} ->
+          # Backward compatibility - try to get dimensions from header
+          try do
+            {width, height} = get_dimensions(header)
+            {:ok, %{header: header, data: data, width: width, height: height}}
+          rescue
+            _ -> {:ok, %{header: header, data: data}}
+          end
+        error -> error
+      end
+    end
+  end
+
+  @doc """
+  Write image data to a new FITS file with specified dimensions.
+
+  ## Parameters
+
+  - path: Path to create the new FITS file
   - data: Binary containing float32 pixel data
   - width: Width of the image in pixels
   - height: Height of the image in pixels
-  - bitpix: (Optional) FITS BITPIX value to use (default: -32 for float)
 
   ## Returns
 
   - :ok on success
   - {:error, status} or {:error, :dimensions_mismatch} on failure
   """
-  def write_image(_filename, _data, _width, _height), do: :erlang.nif_error(:nif_not_loaded)
-  def write_image(_filename, _data, _width, _height, _bitpix), do: :erlang.nif_error(:nif_not_loaded)
-
-  @doc """
-  Convenience function to write image data (float32 binary) to a new FITS file with automatic dimensions.
-  Creates a 1-row image by default.
-  """
-  def write_image(filename, data) do
-    # Calculate dimensions assuming a single row
-    num_pixels = byte_size(data) / 4  # 4 bytes per float32
-    write_image(filename, data, trunc(num_pixels), 1)
+  def write_image(path, data, width, height) when is_binary(path) and is_integer(width) and is_integer(height) do
+    NIF.write_image(path, data, width, height)
   end
 
   @doc """
-  Update header cards in an existing FITS file.
+  Create a 2D image from a list of lists of floats.
 
   ## Parameters
 
-  - filename: Path to the FITS file to update
-  - header: Map of header cards to write
+  - data: A list of lists of floats, where each inner list represents a row
+
+  ## Returns
+
+  - {binary, width, height} tuple containing the binary data and dimensions
+  """
+  def create_image_from_lists(data) when is_list(data) and is_list(hd(data)) do
+    height = length(data)
+    width = length(hd(data))
+
+    # Verify all rows have the same width
+    if Enum.any?(data, fn row -> length(row) != width end) do
+      raise ArgumentError, "All rows must have the same length"
+    end
+
+    # Flatten and convert to binary using native endianness (same as CFITSIO)
+    binary = data
+    |> List.flatten()
+    |> Enum.map(fn x -> <<x::float-32-native>> end)
+    |> IO.iodata_to_binary()
+
+    {binary, width, height}
+  end
+
+  @doc """
+  Write a 2D image from a list of lists of floats to a FITS file.
+
+  ## Parameters
+
+  - path: Path to create the new FITS file
+  - data: A list of lists of floats, where each inner list represents a row
 
   ## Returns
 
   - :ok on success
   - {:error, status} on failure
   """
-  def write_header_cards(_filename, _header), do: :erlang.nif_error(:nif_not_loaded)
+  def write_image_from_lists(path, data) when is_binary(path) and is_list(data) do
+    {binary, width, height} = create_image_from_lists(data)
+    write_image(path, binary, width, height)
+  end
 
   @doc """
-  Write both image data and header cards to a new FITS file in a single operation.
+  Extract dimensions from the header of a FITS file.
 
   ## Parameters
 
-  - filename: Path to create the new FITS file
+  - header: FITS header map as returned by read_header/1
+
+  ## Returns
+
+  - {width, height} tuple
+  """
+  def get_dimensions(header) do
+    width = Map.get(header, :"NAXIS1")
+    height = Map.get(header, :"NAXIS2")
+    {width, height}
+  end
+
+  @doc """
+  Copy a FITS file with its image data and header information.
+
+  ## Parameters
+
+  - source_path: Path to the source FITS file
+  - dest_path: Path to the destination FITS file
+  - preserve_bitpix: Whether to preserve the original bit depth (default: true)
+
+  ## Returns
+
+  - :ok on success
+  - {:error, reason} on failure
+  """
+  def copy(source_path, dest_path, preserve_bitpix \\ true) when is_binary(source_path) and is_binary(dest_path) do
+    with {:ok, header} <- read_header(source_path),
+         read_result <- read_image(source_path) do
+
+      # Get the original BITPIX value if we're preserving it
+      bitpix = if preserve_bitpix, do: Map.get(header, :BITPIX, -32), else: -32 # Default to float if not preserving
+
+      case read_result do
+        {:ok, {width, height, data}} ->
+          # Write with the original BITPIX value
+          case NIF.write_image(dest_path, data, width, height, bitpix) do
+            :ok ->
+              # If image write is successful, copy the header cards
+              case copy_header_cards(source_path, dest_path, header) do
+                :ok -> :ok
+                error -> error
+              end
+            error -> error
+          end
+
+        {:ok, data} ->
+          # No dimensions, get them from the header
+          {width, height} = get_dimensions(header)
+          case NIF.write_image(dest_path, data, width, height, bitpix) do
+            :ok ->
+              # If image write is successful, copy the header cards
+              case copy_header_cards(source_path, dest_path, header) do
+                :ok -> :ok
+                error -> error
+              end
+            error -> error
+          end
+
+        error -> error
+      end
+    end
+  end
+
+  @doc """
+  Copy header cards from one FITS file to another.
+
+  ## Parameters
+
+  - source_path: Path to the source FITS file (not used directly, header is passed separately)
+  - dest_path: Path to the destination FITS file to update
+  - header: Map containing header cards to copy
+
+  ## Returns
+
+  - :ok on success
+  - {:error, reason} on failure
+  """
+  def copy_header_cards(_source_path, dest_path, header) when is_binary(dest_path) and is_map(header) do
+    # Make sure the file exists before trying to update it
+    if File.exists?(dest_path) do
+      # Use the NIF function to write the header cards
+      result = NIF.write_header_cards(dest_path, header)
+
+      # Debug output
+      IO.puts("Writing header cards to #{dest_path}: #{inspect(result)}")
+
+      result
+    else
+      IO.puts("Cannot write header cards: file #{dest_path} does not exist")
+      {:error, :file_not_found}
+    end
+  end
+
+  @doc """
+  Convert binary float data from a FITS file to a list of lists.
+
+  ## Parameters
+
+  - binary: Binary data from read_image/1
+  - width: Width of the image
+  - height: Height of the image
+
+  ## Returns
+
+  - List of lists representing the 2D image
+  """
+  def binary_to_lists(binary, width, height) do
+    for row <- 0..(height-1) do
+      for col <- 0..(width-1) do
+        offset = (row * width + col) * 4
+        <<value::float-32-native>> = binary_part(binary, offset, 4)
+        value
+      end
+    end
+  end
+
+  @doc """
+  Create a new FITS file with both image data and header information in a single operation.
+
+  ## Parameters
+
+  - path: Path to create the new FITS file
   - data: Binary containing float32 pixel data
-  - headers: List of header cards as strings
-  - bitpix: FITS BITPIX value to use (-32 for float, 16 for short, etc)
-  - options: (Optional) Map of options for controlling the write operation
-  - multi_extension: (Optional) Boolean flag, set to true for multi-extension files
+  - width: Width of the image in pixels
+  - height: Height of the image in pixels
+  - header: Map of header cards to include
+  - options: Keyword list of options:
+    - bitpix: FITS BITPIX value (default: value from header or -32 for float)
 
   ## Returns
 
-  - {:ok, filename} on success
+  - :ok on success
   - {:error, reason} on failure
   """
-  def write_fits_file(_filename, _data, _headers, _bitpix), do: :erlang.nif_error(:nif_not_loaded)
-  def write_fits_file(_filename, _data, _headers, _bitpix, _options), do: :erlang.nif_error(:nif_not_loaded)
-  def write_fits_file(_filename, _data, _headers, _bitpix, _options, _multi_extension), do: :erlang.nif_error(:nif_not_loaded)
+  def write_fits(path, data, width, height, header, options \\ []) do
+    # Get bitpix from options, header, or default to -32 (float)
+    bitpix = Keyword.get(options, :bitpix) ||
+             Map.get(header, :BITPIX) ||
+             -32
+
+    # Write the file with image data and header in a single operation
+    NIF.write_fits_file(path, data, width, height, bitpix, header)
+  end
 
   @doc """
-  Write a multi-extension FITS file.
+  Copy a FITS file with header preservation in a single operation.
 
   ## Parameters
 
-  - filename: Path to create the new FITS file
-  - data_list: List of binary data for each extension
-  - headers_list: List of header card lists for each extension
-  - bitpix: FITS BITPIX value to use (-32 for float, 16 for short, etc)
-  - options: (Optional) Map of options for controlling the write operation
+  - source_path: Path to the source FITS file
+  - dest_path: Path to the destination FITS file
+  - options: Keyword list of options:
+    - preserve_bitpix: Whether to preserve the original bit depth (default: true)
 
   ## Returns
 
-  - {:ok, filename} on success
+  - :ok on success
   - {:error, reason} on failure
   """
-  def write_multi_extension_fits(filename, data_list, headers_list, bitpix, options \\ %{}) do
-    write_fits_file(filename, data_list, headers_list, bitpix, options, 1)
+  def copy_with_header(source_path, dest_path, options \\ []) do
+    preserve_bitpix = Keyword.get(options, :preserve_bitpix, true)
+
+    with {:ok, header} <- read_header(source_path),
+         {:ok, {width, height, data}} <- read_image(source_path) do
+
+      # Get the original BITPIX value if we're preserving it
+      bitpix = if preserve_bitpix, do: Map.get(header, :BITPIX, -32), else: -32
+
+      # Write the destination file with all header information
+      write_fits(dest_path, data, width, height, header, bitpix: bitpix)
+    else
+      {:ok, data} ->
+        # Backward compatibility - try to get dimensions from header
+        with {:ok, header} <- read_header(source_path),
+             {width, height} <- get_dimensions(header) do
+          # Get the original BITPIX value if we're preserving it
+          bitpix = if preserve_bitpix, do: Map.get(header, :BITPIX, -32), else: -32
+
+          # Write the destination file with all header information
+          write_fits(dest_path, data, width, height, header, bitpix: bitpix)
+        end
+
+      error -> error
+    end
+  end
+
+  @doc """
+  Convert FITS image data to an Nx tensor.
+
+  ## Parameters
+
+  - path: Path to the FITS file
+  - options: Optional map of options (for future expansion)
+
+  ## Returns
+
+  - {:ok, tensor} where tensor is an Nx tensor containing the image data
+  - {:error, reason} on failure
+  """
+  def to_nx(path, _options \\ %{}) do
+    if Code.ensure_loaded?(Nx) do
+      with {:ok, {width, height, data}} <- read_image(path) do
+        # Convert binary data to Nx tensor with proper shape
+        # FITS data is stored in big-endian format, ensure proper conversion
+        tensor = data
+          |> maybe_swap_endianness()
+          |> Nx.from_binary(:f32)
+          |> Nx.reshape({height, width})
+
+        {:ok, tensor}
+      end
+    else
+      {:error, :nx_not_available}
+    end
+  end
+
+  @doc """
+  Write an Nx tensor to a FITS file.
+
+  ## Parameters
+
+  - tensor: Nx tensor containing the image data
+  - path: Path to create the new FITS file
+  - options: Optional map of options:
+    - :bitpix - FITS BITPIX value (default: -32 for float)
+    - :header - Map of header keywords to add
+
+  ## Returns
+
+  - :ok on success
+  - {:error, reason} on failure
+
+  ## Example
+
+      iex> tensor = Nx.iota({100, 100})
+      iex> ExFITS.write_nx(tensor, "output.fits")
+      :ok
+  """
+  def write_nx(tensor, path, options \\ %{}) do
+    if Code.ensure_loaded?(Nx) do
+      # Get the shape of the tensor
+      shape = Nx.shape(tensor)
+
+      # Extract dimensions based on shape
+      {height, width} = case shape do
+        {h, w} -> {h, w}
+        {h, w, _} -> {h, w}  # For 3D tensors, flatten the last dimension
+        {h} -> {h, 1}        # For 1D tensors, treat as single row
+        _ -> raise ArgumentError, "Unsupported tensor shape: #{inspect(shape)}"
+      end
+
+      # Convert to binary data in float32 format and handle endianness
+      data = tensor
+        |> Nx.as_type(:f32)
+        |> Nx.to_binary()
+        |> maybe_swap_endianness() # Ensure proper byte order for FITS
+
+      # Get header if provided or create basic headers
+      header = Map.get(options, :header, %{})
+
+      # Get bitpix from options or default to float (-32)
+      bitpix = Map.get(options, :bitpix, -32)
+
+      # Write to file
+      write_fits(path, data, width, height, header, bitpix: bitpix)
+    else
+      {:error, :nx_not_available}
+    end
+  end
+
+  # Helper to swap endianness if needed
+  # FITS uses big-endian format, but Nx typically works with the system's native endianness
+  defp maybe_swap_endianness(data) do
+    case :erlang.system_info(:endian) do
+      :little -> swap_float32_endianness(data)
+      :big -> data  # FITS uses big-endian format
+    end
+  end
+
+  # Swap byte order for each 4-byte float
+  defp swap_float32_endianness(data) do
+    for <<a::8, b::8, c::8, d::8 <- data>>, into: <<>> do
+      <<d::8, c::8, b::8, a::8>>
+    end
   end
 end
