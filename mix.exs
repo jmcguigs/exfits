@@ -4,14 +4,13 @@ defmodule Exfits.MixProject do
   def project do
     [
       app: :exfits,
-      version: "0.2.0",
+      version: "0.2.1",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       aliases: aliases(),
       description: description(),
       package: package(),
-      docs: docs(),
       compilers: [:nif] ++ Mix.compilers(),
       build_embedded: Mix.env() == :prod
     ]
@@ -28,7 +27,7 @@ defmodule Exfits.MixProject do
   defp deps do
     [
       {:nx, "~> 0.6", optional: true},
-      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.30", only: :dev, runtime: false}
     ]
   end
 
@@ -62,13 +61,6 @@ defmodule Exfits.MixProject do
       maintainers: ["ExFITS Contributors"],
       licenses: ["MIT"],
       links: %{"GitHub" => "https://github.com/jmcguigs/exfits"}
-    ]
-  end
-
-  defp docs do
-    [
-      main: "Exfits",
-      extras: ["README.md"]
     ]
   end
 end
