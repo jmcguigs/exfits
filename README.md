@@ -96,3 +96,7 @@ ExFITS.write_nx(processed_tensor, "processed_image.fits")
 
 Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc):
 
+## License
+
+ExFITS is released under the MIT License. See the [LICENSE](LICENSE) file for details.
+

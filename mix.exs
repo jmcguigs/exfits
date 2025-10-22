@@ -62,7 +62,7 @@ defmodule Exfits.MixProject do
       files: ~w(lib c_src mix.exs README.md LICENSE),
       maintainers: ["ExFITS Contributors"],
       licenses: ["MIT"],
-      links: %{"GitHub" => "https://github.com/yourusername/exfits"}
+      links: %{"GitHub" => "https://github.com/jmcguigs/exfits"}
     ]
   end
 
