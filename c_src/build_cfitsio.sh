@@ -41,7 +41,12 @@ else
       cp drvrnet.c drvrnet.c.bak
       
       # Remove or comment out curl functionality in drvrnet.c
-      sed -i 's/curl_off_t/off_t/g' drvrnet.c
+      # Use platform-specific sed syntax (macOS requires an extension with -i)
+      if [ "$(uname)" = "Darwin" ]; then
+        sed -i '' 's/curl_off_t/off_t/g' drvrnet.c
+      else
+        sed -i 's/curl_off_t/off_t/g' drvrnet.c
+      fi
     fi
     
     make
