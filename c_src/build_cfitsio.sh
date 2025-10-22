@@ -1,6 +1,12 @@
 #!/bin/sh
 set -e
 
+# Skip if NIF already exists
+if [ -f "priv/exfits_nif.so" ]; then
+  echo "NIF library already exists, skipping compilation"
+  exit 0
+fi
+
 # Prefer system CFITSIO if available
 if pkg-config --exists cfitsio; then
   CFITSIO_LIBDIR="$(pkg-config --variable=libdir cfitsio)"
@@ -110,7 +116,7 @@ echo "Found Erlang NIF include path: $NIF_INCLUDE"
 echo "Found CFITSIO include paths: $CFITSIO_INCDIR1 $CFITSIO_INCDIR2"
 echo "Found CFITSIO library path: $CFITSIO_LIBDIR"
 
-# Create priv directory if it doesn't exist
+# Ensure priv directory exists (should already be created by mix task)
 mkdir -p priv
 
 # Compile the NIF

@@ -1,9 +1,19 @@
 defmodule ExFITS.NIF do
   @on_load :load_nif
+  @moduledoc false
 
   def load_nif do
-    IO.puts("Loading NIF...")
-    :erlang.load_nif(Application.app_dir(:exfits, "priv/exfits_nif"), 0)
+    nif_path = Application.app_dir(:exfits, "priv/exfits_nif")
+
+    case :erlang.load_nif(nif_path, 0) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        IO.warn("Failed to load NIF: #{inspect(reason)}")
+
+        {:error, reason}
+    end
   end
 
   def hello, do: :erlang.nif_error(:nif_not_loaded)
@@ -48,7 +58,9 @@ defmodule ExFITS.NIF do
   - {:error, status} or {:error, :dimensions_mismatch} on failure
   """
   def write_image(_filename, _data, _width, _height), do: :erlang.nif_error(:nif_not_loaded)
-  def write_image(_filename, _data, _width, _height, _bitpix), do: :erlang.nif_error(:nif_not_loaded)
+
+  def write_image(_filename, _data, _width, _height, _bitpix),
+    do: :erlang.nif_error(:nif_not_loaded)
 
   @doc """
   Convenience function to write image data (float32 binary) to a new FITS file with automatic dimensions.
@@ -56,7 +68,8 @@ defmodule ExFITS.NIF do
   """
   def write_image(filename, data) do
     # Calculate dimensions assuming a single row
-    num_pixels = byte_size(data) / 4  # 4 bytes per float32
+    # 4 bytes per float32
+    num_pixels = byte_size(data) / 4
     write_image(filename, data, trunc(num_pixels), 1)
   end
 
@@ -93,8 +106,12 @@ defmodule ExFITS.NIF do
   - {:error, reason} on failure
   """
   def write_fits_file(_filename, _data, _headers, _bitpix), do: :erlang.nif_error(:nif_not_loaded)
-  def write_fits_file(_filename, _data, _headers, _bitpix, _options), do: :erlang.nif_error(:nif_not_loaded)
-  def write_fits_file(_filename, _data, _headers, _bitpix, _options, _multi_extension), do: :erlang.nif_error(:nif_not_loaded)
+
+  def write_fits_file(_filename, _data, _headers, _bitpix, _options),
+    do: :erlang.nif_error(:nif_not_loaded)
+
+  def write_fits_file(_filename, _data, _headers, _bitpix, _options, _multi_extension),
+    do: :erlang.nif_error(:nif_not_loaded)
 
   @doc """
   Write a multi-extension FITS file.

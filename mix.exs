@@ -11,7 +11,9 @@ defmodule Exfits.MixProject do
       aliases: aliases(),
       description: description(),
       package: package(),
-      docs: docs()
+      docs: docs(),
+      compilers: [:nif] ++ Mix.compilers(),
+      build_embedded: Mix.env() == :prod
     ]
   end
 
@@ -33,10 +35,18 @@ defmodule Exfits.MixProject do
 
   defp aliases do
     [
+      # Keep the alias for backward compatibility
       "compile.nif": [
+        "compile.nif.force"
+      ],
+      "compile.nif.force": [
+        # Force recompilation
+        "cmd rm -f priv/exfits_nif.so",
         "cmd mkdir -p priv",
         "cmd sh c_src/build_cfitsio.sh"
-      ]
+      ],
+      # Ensure NIF is cleaned when running mix clean
+      clean: ["clean", "clean.nif"]
     ]
   end
 
