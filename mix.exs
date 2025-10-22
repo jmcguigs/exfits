@@ -11,6 +11,7 @@ defmodule Exfits.MixProject do
       aliases: aliases(),
       description: description(),
       package: package(),
+      docs: docs(),
       compilers: [:nif] ++ Mix.compilers(),
       build_embedded: Mix.env() == :prod
     ]
@@ -61,6 +62,24 @@ defmodule Exfits.MixProject do
       maintainers: ["ExFITS Contributors"],
       licenses: ["MIT"],
       links: %{"GitHub" => "https://github.com/jmcguigs/exfits"}
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      source_url: "https://github.com/jmcguigs/exfits",
+      extras: ["README.md"],
+      source_ref: "main",
+      formatters: ["html"],
+      groups_for_modules: [
+        "Core": [
+          ExFITS
+        ],
+        "NIF Interface": [
+          ExFITS.NIF
+        ]
+      ]
     ]
   end
 end

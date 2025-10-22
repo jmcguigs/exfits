@@ -1,6 +1,8 @@
 defmodule ExFITS.NIF do
   @on_load :load_nif
-  @moduledoc false
+  @moduledoc """
+  NIF interface for ExFITS providing bindings to CFITSIO library functions.
+  """
 
   def load_nif do
     nif_path = Application.app_dir(:exfits, "priv/exfits_nif")
